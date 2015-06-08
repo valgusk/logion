@@ -1,0 +1,1 @@
+Logion::Logion.new
