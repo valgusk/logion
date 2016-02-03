@@ -1,6 +1,3 @@
-require 'rspec'
-require 'rspec/core/formatters/base_formatter'
-
 module Logion
   class Formatter < RSpec::Core::Formatters::BaseFormatter
     RSpec::Core::Formatters.register self, :example_failed, :dump_failures
@@ -24,13 +21,13 @@ module Logion
     private
 
     def show_failure_debug_info(example)
-      @output.puts('----------------------------'.colorize(:yellow))
-      @output.puts(example.rerun_argument.colorize(color: :yellow, background: :blue))
-      @output.puts(example.metadata[:log_location].to_s.colorize(color: :white, background: :blue))
+      @output.puts(::Logion::Logion.colorize('----------------------------', color: :yellow))
+      @output.puts(::Logion::Logion.colorize(example.rerun_argument, color: :yellow, background: :blue))
+      @output.puts(::Logion::Logion.colorize(example.metadata[:log_location].to_s, color: :white, background: :blue))
       if example.metadata[:screenshot].is_a?(Hash)
         example.metadata[:screenshot].each do |type, path|
-          colorful_type = type.to_s.colorize(color: :black, background: :white)
-          colorful_path = path.to_s.colorize(color: :black, background: :light_blue)
+          colorful_type = ::Logion::Logion.colorize(type.to_s, color: :black, background: :white)
+          colorful_path = ::Logion::Logion.colorize(path.to_s, color: :black, background: :light_blue)
           @output.puts("#{ colorful_type } #{ colorful_path }")
         end
       end

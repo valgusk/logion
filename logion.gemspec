@@ -16,7 +16,6 @@ Gem::Specification.new do |s|
 
   s.files = Dir["{config,lib}/**/*"] + ["MIT-LICENSE", "Rakefile", "README.rdoc"]
 
-  s.add_runtime_dependency 'rails',       '~> 3.2'
-  s.add_runtime_dependency 'rspec-rails', '~> 3.2'
+  s.add_runtime_dependency 'rspec'
   s.add_runtime_dependency 'colorize',    '~> 0.7.7'
 end

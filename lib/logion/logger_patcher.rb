@@ -4,44 +4,54 @@ module Logion
 
     def initialize(logion_instance)
       self.logion_instance = logion_instance
-      self.logger          = logion_instance.options[:logger].call
+      self.logger          = logion_instance.logger
 
-      additional_logging =  proc do |*args, _block|
-        log_to_separate_file *args
+      additional_logging =  proc do |*args, &block|
+        log_to_separate_file *args, &block
       end
 
       logger.instance_variable_set '@additional_logging', additional_logging
 
+      # we don't want to ruin your pretty logger, so lets extend it
       def logger.add(*args, &block)
-        @additional_logging.call(*args, block)
+        @additional_logging.call(*args, &block)
         super
       end
     end
 
-    def log_to_separate_file(severity, message, progname, *_rest)
-      message ||= progname
-      info_file = logion_instance.options[:log_path_holder].call
-
-      if File.exists?(info_file)
-        separate_log = File.read(info_file)
-
-        severity_name = Logger::Severity.constants.find do |name|
-          Logger::Severity.const_get(name) == severity
-        end
-
-        color, background = {
+    def severity_colors(severity_name)
+      {
           WARN:    [:black, :yellow],
           DEBUG:   [:white, :blue],
           INFO:    [:black, :green],
           FATAL:   [:white, :red],
           ERROR:   [:black, :light_red],
           UNKNOWN: [:white, :black]
-        }[severity_name]
+      }[severity_name]
+    end
 
-        severity_name = '%10s' % "(#{ severity_name })"
+    def format_log_entry(severity, message = nil, progname = nil, *_rest)
+      message ||= progname
 
-        prefix = "#{ Process.pid } #{ severity_name }:".colorize(color: color, background: background)
-        open(separate_log, 'a') { |f| f.puts "#{ prefix } #{ message }" }
+      severity_name = Logger::Severity.constants.find do |name|
+        Logger::Severity.const_get(name) == severity
+      end
+
+      color, background = severity_colors(severity_name)
+
+      prefix = "#{ Process.pid } #{ '%10s' % "(#{ severity_name })" }:"
+      prefix = ::Logion::Logion.colorize(prefix, color: color, background: background)
+
+      "#{ prefix } #{ message }"
+    end
+
+    def log_to_separate_file(*args, &block)
+      info_file = logion_instance.log_path_holder
+
+      if File.exists?(info_file)
+        separate_log    = File.read(info_file)
+        formatted_entry = format_log_entry(*args, &block)
+        open(separate_log, 'a') { |f| f.puts formatted_entry }
       end
     end
   end

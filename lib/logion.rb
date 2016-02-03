@@ -4,26 +4,62 @@ module Logion
   class Logion
     attr_accessor :options
 
+    def self.colorize(string, *args, &block)
+      return string if Object.const_defined?(:Colored)
+      string.colorize(*args, &block)
+    end
+
     DEFAULT_CONFIG = {
       split_per_occurance: true,
-      log_path_holder:     -> { Rails.root.join 'tmp', ".current_spec_log_path#{ ENV['TEST_ENV_NUMBER'] }" },
-      log_base:            -> { Rails.root.join 'tmp', 'log', "tests#{ ENV['TEST_ENV_NUMBER'] }" },
-      add_hooks:           ->(logion) { logion.configure_rspec },
-      logger:              -> { Rails.logger },
-      separator:           lambda do |example, action|
-        Rails.logger.debug "#{ example.rerun_argument } #{ action }:".colorize(color: :white, background: :red)
-      end
+      log_path_holder:     -> { Pathname.new('tmp').join ".current_spec_log_path#{ ENV['TEST_ENV_NUMBER'] }" },
+      log_base:            -> { Pathname.new('tmp').join 'log', "tests#{ ENV['TEST_ENV_NUMBER'] }" },
+      add_hooks:           ->(logion) { fail "Rspec not present!" },
+      logger:              -> { fail 'No logger provided' },
+      separator:           lambda do |logion, example, action|
+        logion.logger.debug colorize("#{ example.rerun_argument } #{ action }:", color: :white, background: :red)
+      end,
+      patcher_class:       ::Logion::LoggerPatcher
     }
 
-    def initialize(init_options = {})
-      self.options = DEFAULT_CONFIG.merge init_options
+    RAILS_DEFAULTS = {
+      log_path_holder:     -> { Rails.root.join 'tmp', ".current_spec_log_path#{ ENV['TEST_ENV_NUMBER'] }" },
+      log_base:            -> { Rails.root.join 'tmp', 'log', "tests#{ ENV['TEST_ENV_NUMBER'] }" },
+      logger:              -> { Rails.logger }
+    }
 
-      options[:add_hooks].call self
+    RSPEC_DEFAULTS = {
+      add_hooks:           ->(logion) { logion.configure_rspec },
+    }
+
+    [DEFAULT_CONFIG, RAILS_DEFAULTS, RSPEC_DEFAULTS].flat_map(&:keys).each do |param|
+      define_method param do |*args|
+        if self.options[param].is_a?(Proc)
+          proc = self.options[param]
+          proc.(*[self, *args].first(proc.arity))
+        else
+          self.options[param]
+        end
+      end
+    end
+
+    def initialize(init_options = {})
+      defaults = DEFAULT_CONFIG
+
+      if Object.const_defined?('Rails')
+        defaults.merge! RAILS_DEFAULTS
+      end
+
+      if Object.const_defined?('RSpec')
+        defaults.merge! RSPEC_DEFAULTS
+      end
+
+      self.options = defaults.merge init_options
+      add_hooks
     end
 
     def configure_rspec
       me = self
-      formatter_klass = Formatter
+      formatter_klass = ::Logion::Formatter
 
       RSpec.configure do |config|
         config.add_formatter(formatter_klass)
@@ -43,41 +79,41 @@ module Logion
     end
 
     def init
-      FileUtils.rm_f options[:log_path_holder].call
-      FileUtils.remove_dir options[:log_base].call, force: true
-      @log_patcher = LoggerPatcher.new self
+      FileUtils.rm_f log_path_holder
+      FileUtils.remove_dir log_base, force: true
+      @log_patcher = patcher_class.new self
     end
 
     def before(example)
       relative_path = example.rerun_argument.sub(/:(\d+)$/, '/\1.log')
-      location      = options[:log_base].call.join(relative_path)
+      location      = log_base.join(relative_path)
       location      = safe_location(location, relative_path)
 
       location.dirname.mkpath
       example.metadata[:log_location] = location
-      File.write(options[:log_path_holder].call, location.to_s)
-      options[:separator].(example, :start)
+      File.write(log_path_holder, location.to_s)
+      separator example, :start
     end
 
     def after(example)
-      options[:separator].(example, :end)
-      FileUtils.rm options[:log_path_holder].call
+      separator example, :end
+      FileUtils.rm log_path_holder
     end
 
     private
 
     def safe_location(location, relative_path)
-      safe_location = location
-      if options[:split_per_occurance]
+      uniq_location = location
+      if split_per_occurance
         suffix        = 0
 
-        while File.exists? safe_location
+        while File.exists? uniq_location
           suffix += 1
           safe_relative_path = relative_path.sub(/\.log$/, ".#{ suffix }.log")
-          safe_location = options[:log_base].call.join safe_relative_path
+          uniq_location      = log_base.join safe_relative_path
         end
       end
-      safe_location
+      uniq_location
     end
   end
 end
