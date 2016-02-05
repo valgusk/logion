@@ -16,7 +16,8 @@ module Logion
       add_hooks:           ->(logion) { fail "Rspec not present!" },
       logger:              -> { fail 'No logger provided' },
       separator:           lambda do |logion, example, action|
-        logion.logger.debug colorize("#{ example.rerun_argument } #{ action }:", color: :white, background: :red)
+        path = example.respond_to?(:rerun_argument) ? example.rerun_argument : example.location
+        logion.logger.debug colorize("#{ path } #{ action }:", color: :white, background: :red)
       end,
       patcher_class:       ::Logion::LoggerPatcher
     }
@@ -85,7 +86,8 @@ module Logion
     end
 
     def before(example)
-      relative_path = example.rerun_argument.sub(/:(\d+)$/, '/\1.log')
+      path = example.respond_to?(:rerun_argument) ? example.rerun_argument : example.location
+      relative_path = path.sub(/:(\d+)$/, '/\1.log')
       location      = log_base.join(relative_path)
       location      = safe_location(location, relative_path)
 
