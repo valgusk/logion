@@ -9,7 +9,7 @@ Gem::Specification.new do |s|
   s.version     = Logion::VERSION
   s.authors     = ['Valery Guskov']
   s.email       = ['valerijs.gusjkovs@gmail.com']
-  s.homepage    = nil
+  s.homepage    = 'https://github.com/valgusk/logion'
   s.summary     = 'Output logs per example'
   s.description = 'A hacky gem to output per-example logs'
   s.licenses    = ['MIT']
